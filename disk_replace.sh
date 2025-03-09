@@ -1,8 +1,6 @@
 #!/bin/bash
 
-echo "Current directory before cd: $(pwd)"
-cd /
-echo "Current directory after cd: $(pwd)"
+
 
 # 函数：显示硬盘列表并让用户选择
 select_disk() {
@@ -193,6 +191,10 @@ echo "更新说明：" >&2
 echo "- 修复函数语法错误" >&2
 echo "- 优化fstab更新逻辑" >&2
 echo "=============================" >&2
+
+echo "Current directory before cd: $(pwd)"
+cd /
+echo "Current directory after cd: $(pwd)"
 
 # 获取选择信息
 selected_info=$(select_disk)
