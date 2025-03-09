@@ -1,6 +1,9 @@
 #!/bin/bash
 
+echo "Current directory before cd: $(pwd)"
 cd /
+echo "Current directory after cd: $(pwd)"
+
 # 函数：显示硬盘列表并让用户选择
 select_disk() {
   local disks=($(ls /dev/disk/by-id/ | grep "scsi-0BUYVM_SLAB_VOLUME"))
