@@ -29,7 +29,7 @@ declare -A TEST_MAP=(
     ["seq_write"]="顺序写入 -seqwrite --rw=write --bs=1M"
     ["seq_read"]="顺序读取 -seqread --rw=read --bs=1M"
     ["rand_write"]="随机写入 -randwrite --rw=randwrite --bs=8k --iodepth=1 --numjobs=1"
-    ["rand_read"]="随机读取 -randread --rw=randread --bs=8k --iodepth=1 --numjobs=1"
+    ["rand_read"]="随机读取 -randread --rw=read --bs=8k --iodepth=1 --numjobs=1"
     ["pt_down"]="PT下载 -ptd --rw=rw --bs=256k --rwmixread=30 --ioengine=sync --direct=0" # 修改：顺序I/O，同步I/O，允许缓存，7写3读
     ["pt_seeding"]="PT刷流 -pts --rw=rw --bs=256k --rwmixread=70 --ioengine=sync --direct=0" # 修改：顺序I/O，同步I/O，允许缓存，7读3写
     ["pt_5050"]="PT50% -pt50 --rw=rw --bs=256k --rwmixread=50 --ioengine=sync --direct=0"  # 修改：顺序I/O，同步I/O，允许缓存，50%读写
@@ -214,16 +214,18 @@ run_test() {
         "$@"
     )
 
-    local total_iops=0 total_bw=0 total_read_bw=0 total_write_bw=0 success=0
+    local total_read_iops=0 total_write_iops=0 total_bw=0 total_read_bw=0 total_write_bw=0 success=0
     #for i in {1..3}; do  # 减少测试次数
     for i in {1..1}; do
         if output=$(timeout $((RUNTIME + 30)) fio "${fio_params[@]}" 2>&1); then
-            local iops=$(jq -r '([.jobs[0].read.iops + .jobs[0].write.iops] | add)' <<< "${output}")
+            local read_iops=$(jq -r '.jobs[0].read.iops' <<< "${output}")
+            local write_iops=$(jq -r '.jobs[0].write.iops' <<< "${output}")
             local bw=$(jq -r '(.jobs[0].read.bw + .jobs[0].write.bw) / 1024 | floor' <<< "${output}")
             local read_bw=$(jq -r '(.jobs[0].read.bw) / 1024 | floor' <<< "${output}")
             local write_bw=$(jq -r '(.jobs[0].write.bw) / 1024 | floor' <<< "${output}")
 
-            total_iops=$(echo "${total_iops} + ${iops}" | bc)
+            total_read_iops=$(echo "${total_read_iops} + ${read_iops}" | bc)
+            total_write_iops=$(echo "${total_write_iops} + ${write_iops}" | bc)
             total_bw=$(echo "${total_bw} + ${bw}" | bc)
             total_read_bw=$(echo "${total_read_bw} + ${read_bw}" | bc)
             total_write_bw=$(echo "${total_write_bw} + ${write_bw}" | bc)
@@ -237,13 +239,17 @@ run_test() {
     printf "\r\033[K"
 
     if [[ "$name" == "pt_down" || "$name" == "pt_seeding" || "$name" == "pt_5050" || "$name" == "pt_upload" || "$name" == "pt_download" ]]; then
-        local avg_iops=$(echo "scale=0; ${total_iops} / ${success}" | bc)
+        local avg_read_iops=$(echo "scale=0; ${total_read_iops} / ${success}" | bc)
+        local avg_write_iops=$(echo "scale=0; ${total_write_iops} / ${success}" | bc)
+        local avg_iops=$(echo "scale=0; ${avg_read_iops} + ${avg_write_iops}" | bc)
         local avg_bw=$(echo "scale=0; ${total_bw} / ${success}" | bc)
         local avg_read_bw=$(echo "scale=0; ${total_read_bw} / ${success}" | bc)
         local avg_write_bw=$(echo "scale=0; ${total_write_bw} / ${success}" | bc)
         printf "${GREEN}✔ %-15s ${BLUE}IOPS:%'15d ${GREEN}总带宽:%'10dMB/s 上传:%'10dMB/s 下载:%'10dMB/s${RESET}\n" "${desc}" "${avg_iops}" "${avg_bw}" "${avg_read_bw}" "${avg_write_bw}"
     else
-        local avg_iops=$(echo "scale=0; ${total_iops} / ${success}" | bc)
+        local avg_read_iops=$(echo "scale=0; ${total_read_iops} / ${success}" | bc)
+        local avg_write_iops=$(echo "scale=0; ${total_write_iops} / ${success}" | bc)
+        local avg_iops=$(echo "scale=0; ${avg_read_iops} + ${avg_write_iops}" | bc)
         local avg_bw=$(echo "scale=0; ${total_bw} / ${success}" | bc)
         printf "${GREEN}✔ %-15s ${BLUE}IOPS:%'15d ${GREEN}总带宽:%'10dMB/s${RESET}\n" "${desc}" "${avg_iops}" "${avg_bw}"
     fi
