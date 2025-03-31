@@ -88,11 +88,17 @@ select_disk() {
 # 函数：卸载硬盘（修复语法错误）
 umount_disk() {
   local mount_point="$1"
+  local current_dir=$(pwd) # 保存当前目录
   echo "正在卸载 ${mount_point}..." >&2
+
+  # 切换到根目录
+  cd /
+  echo "当前目录: $(pwd)" >&2
 
   # 首次尝试卸载
   if umount "$mount_point" 2>/dev/null; then
     echo "卸载成功" >&2
+    cd "$current_dir" # 切换回原始目录
     return 0
   fi
 
@@ -104,11 +110,13 @@ umount_disk() {
   # 再次尝试卸载
   if umount "$mount_point"; then
     echo "卸载成功" >&2
+    cd "$current_dir" # 切换回原始目录
     return 0
   else
     echo "再次卸载失败，可能仍有进程占用" >&2
     ps aux | grep -ie "qbittorrent\|$mount_point"
-    exit 1
+    cd "$current_dir" # 切换回原始目录
+    return 1  # 返回错误代码
   fi
 }  # 修复：添加闭合大括号
 
@@ -207,14 +215,18 @@ cd /
 echo "当前目录: $(pwd)" >&2
 
 # 执行操作流程
-umount_disk "$mount_point"
-format_disk "$new_disk_path"
-mount_disk "$new_disk_path" "$mount_point"
-set_fstab "$old_disk_path" "$new_disk_path" "$mount_point"
+if umount_disk "$mount_point"; then
+  format_disk "$new_disk_path"
+  mount_disk "$new_disk_path" "$mount_point"
+  set_fstab "$old_disk_path" "$new_disk_path" "$mount_point"
 
-# 设置权限
-echo "正在设置目录权限..." >&2
-chmod -R 777 "$mount_point"
+  # 设置权限
+  echo "正在设置目录权限..." >&2
+  chmod -R 777 "$mount_point"
+else
+  echo "卸载硬盘失败，请检查错误信息，脚本已停止。" >&2
+  exit 1
+fi
 
 # 切换回原始目录
 echo "切换回原始目录: $original_path" >&2
