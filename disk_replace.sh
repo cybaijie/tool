@@ -82,23 +82,25 @@ select_disk() {
     exit 0
   fi
 
-  echo "$selected_mounted_disk|$selected_unmounted_disk|$selected_mount_point"
+  # 保存原始路径
+  original_path=$(pwd)
+
+  # 切换到根目录
+  echo "切换到根目录..." >&2
+  cd /
+  echo "当前目录: $(pwd)" >&2
+
+  echo "$selected_mounted_disk|$selected_unmounted_disk|$selected_mount_point|$original_path"
 }
 
 # 函数：卸载硬盘（修复语法错误）
 umount_disk() {
   local mount_point="$1"
-  local current_dir=$(pwd) # 保存当前目录
   echo "正在卸载 ${mount_point}..." >&2
-
-  # 切换到根目录
-  cd /
-  echo "当前目录: $(pwd)" >&2
 
   # 首次尝试卸载
   if umount "$mount_point" 2>/dev/null; then
     echo "卸载成功" >&2
-    cd "$current_dir" # 切换回原始目录
     return 0
   fi
 
@@ -110,12 +112,10 @@ umount_disk() {
   # 再次尝试卸载
   if umount "$mount_point"; then
     echo "卸载成功" >&2
-    cd "$current_dir" # 切换回原始目录
     return 0
   else
     echo "再次卸载失败，可能仍有进程占用" >&2
     ps aux | grep -ie "qbittorrent\|$mount_point"
-    cd "$current_dir" # 切换回原始目录
     return 1  # 返回错误代码
   fi
 }  # 修复：添加闭合大括号
@@ -198,21 +198,14 @@ echo "- 修复函数语法错误" >&2
 echo "- 优化fstab更新逻辑" >&2
 echo "=============================" >&2
 
-# 保存原始路径
-original_path=$(pwd)
-
 # 获取选择信息
 selected_info=$(select_disk)
-IFS='|' read -r old_disk new_disk mount_point <<< "$selected_info"
+IFS='|' read -r old_disk new_disk mount_point original_path <<< "$selected_info"
 
 # 转换设备路径
 old_disk_path="/dev/disk/by-id/${old_disk}"
 new_disk_path="/dev/disk/by-id/${new_disk}"
 
-# 切换到根目录
-echo "切换到根目录..." >&2
-cd /
-echo "当前目录: $(pwd)" >&2
 
 # 执行操作流程
 if umount_disk "$mount_point"; then
